@@ -1,7 +1,7 @@
 services:
   - type: web
     name: jsp-api
-    env: java
+    runtime: java
     buildCommand: ./mvnw clean package
     startCommand: java -jar target/*.jar
     envVars:
@@ -19,4 +19,3 @@ services:
         value: 20MB
       - key: SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE
         value: 20MB
-
