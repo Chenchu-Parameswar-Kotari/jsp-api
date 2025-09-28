@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,9 +22,16 @@ import java.nio.file.Paths;
 public class JanasenaFormController {
 
     private static final Logger logger = LoggerFactory.getLogger(JanasenaFormController.class);
+    private static final long MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
 
     @Autowired
     private JanasenaFormRepository formRepository;
+
+    private void validateFileSize(MultipartFile file, String fieldName) throws IOException {
+        if (file != null && file.getSize() > MAX_FILE_SIZE) {
+            throw new MaxUploadSizeExceededException(MAX_FILE_SIZE);
+        }
+    }
 
     private boolean isValidFileType(MultipartFile file) {
         if (file == null || file.isEmpty()) return true;
@@ -32,6 +41,7 @@ public class JanasenaFormController {
 
     private String saveFile(MultipartFile file, String prefix) throws IOException {
         if (file == null || file.isEmpty()) return null;
+        validateFileSize(file, prefix);
         if (!isValidFileType(file)) throw new IOException("Invalid file type. Only PDF, JPG, and PNG are allowed.");
         String folder = "uploads/";
         Files.createDirectories(Paths.get(folder));
@@ -39,6 +49,12 @@ public class JanasenaFormController {
         Path path = Paths.get(filePath);
         Files.write(path, file.getBytes());
         return filePath;
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<?> handleMaxSizeException(MaxUploadSizeExceededException exc) {
+        return ResponseEntity.status(413)
+            .body("File too large! Maximum allowed size is 50MB per file and 100MB total request size.");
     }
 
     @PostMapping(consumes = {"multipart/form-data"})
@@ -83,6 +99,10 @@ public class JanasenaFormController {
             form.setNomineePhotoPath(saveFile(nomineePhoto, "nominee_photo"));
             JanasenaForm saved = formRepository.save(form);
             return ResponseEntity.ok("Form submitted successfully. ID: " + saved.getId());
+        } catch (MaxUploadSizeExceededException e) {
+            logger.error("File size exceeded", e);
+            return ResponseEntity.status(413)
+                    .body("File too large! Maximum allowed size is 50MB per file and 100MB total request size.");
         } catch (IOException e) {
             logger.error("File upload error", e);
             return ResponseEntity.status(400).body("File upload error: " + e.getMessage());
