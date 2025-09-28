@@ -1,8 +1,13 @@
 services:
   - type: web
     name: jsp-api
+    plan: free
     buildCommand: ./mvnw clean package
     startCommand: java -jar target/*.jar
+    region: ohio
+    autoDeploy: false
+    env: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: SPRING_DATASOURCE_URL
         value: jdbc:postgresql://ep-bitter-surf-adgqa668-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
