@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,11 +19,20 @@ import java.nio.file.Paths;
 @RequestMapping("/api/form")
 public class JanasenaFormController {
 
+    private static final Logger logger = LoggerFactory.getLogger(JanasenaFormController.class);
+
     @Autowired
     private JanasenaFormRepository formRepository;
 
+    private boolean isValidFileType(MultipartFile file) {
+        if (file == null || file.isEmpty()) return true;
+        String contentType = file.getContentType();
+        return contentType != null && (contentType.equals("application/pdf") || contentType.equals("image/jpeg") || contentType.equals("image/png"));
+    }
+
     private String saveFile(MultipartFile file, String prefix) throws IOException {
         if (file == null || file.isEmpty()) return null;
+        if (!isValidFileType(file)) throw new IOException("Invalid file type. Only PDF, JPG, and PNG are allowed.");
         String folder = "uploads/";
         Files.createDirectories(Paths.get(folder));
         String filePath = folder + prefix + "_" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
@@ -31,7 +42,7 @@ public class JanasenaFormController {
     }
 
     @PostMapping(consumes = {"multipart/form-data"})
-    public ResponseEntity<String> submitForm(
+    public ResponseEntity<?> submitForm(
             @RequestPart("form") JanasenaFormDto formDto,
             @RequestPart(value = "memberAadharDocument", required = false) MultipartFile memberAadharDocument,
             @RequestPart(value = "memberPhoto", required = false) MultipartFile memberPhoto,
@@ -70,11 +81,13 @@ public class JanasenaFormController {
             form.setNomineeMobileNumber(formDto.getNomineeMobileNumber());
             form.setNomineeAadharDocumentPath(saveFile(nomineeAadharDocument, "nominee_aadhar"));
             form.setNomineePhotoPath(saveFile(nomineePhoto, "nominee_photo"));
-            formRepository.save(form);
-            return ResponseEntity.ok("Form submitted and saved to database successfully");
+            JanasenaForm saved = formRepository.save(form);
+            return ResponseEntity.ok("Form submitted successfully. ID: " + saved.getId());
         } catch (IOException e) {
-            return ResponseEntity.status(500).body("File upload error: " + e.getMessage());
+            logger.error("File upload error", e);
+            return ResponseEntity.status(400).body("File upload error: " + e.getMessage());
         } catch (Exception e) {
+            logger.error("General error", e);
             return ResponseEntity.status(500).body("Error: " + e.getMessage());
         }
     }
